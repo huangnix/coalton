@@ -17,15 +17,15 @@
    #:max-key-entry
    #:min-key-entry
    #:insert
+   #:adjoin
    #:replace
-   #:replace-or-insert #:insert-or-replace
    #:remove
+   #:update
    #:keys
    #:values
    #:entries
    #:collect!
    #:collect
-   #:update
    #:merge))
 
 (in-package :coalton-library/ordmap)
@@ -70,12 +70,14 @@
     "A red-black binary tree which associates each :KEY with a :VALUE, sorted by `<=>' on the keys and unique by `==' on the keys."
     (%Map (tree:Tree (MapPair :key :value))))
 
+  ;; Mapping API
   (declare empty (OrdMap :key :value))
   (define empty
     "A OrdMap containing no mappings."
     (%Map tree:Empty))
 
-  (declare lookup ((Ord :key) => ((OrdMap :key :value) -> :key -> (Optional :value))))
+  ;; Mapping API
+  (declare lookup ((Ord :key) => OrdMap :key :value -> :key -> Optional :value))
   (define (lookup mp k)
     "Retrieve the value associated with K in MP, or None if MP does not contain K."
     (let (%Map tre) = mp)
@@ -112,14 +114,58 @@ Any of these values can be None if there's no such entry."
         ((Tuple3 lo on hi)
          (Tuple3 (convert lo) (convert on) (convert hi))))))
 
+  ;; Mapping API
+  (declare insert (Ord :key => OrdMap :key :value -> :key -> :value -> OrdMap :key :value))
+  (define (insert mp k v)
+    "Returns an OrdMap in which the key `k` is associated with `v` added
+to the `mp`.  If `mp` already contains mapping for `k`, it is replaced."
+    (let (%Map tre) = mp)
+    (%Map (tree:insert-or-replace tre (MapPair k v))))
+
+  ;; Mapping API
+  (declare adjoin (Ord :key => OrdMap :key :value -> :key -> :value -> OrdMap :key :value))
+  (define (adjoin mp k v)
+    "Returns an OrdMap in which the key `k` is associated with `v` added
+to the `mp`, only when `mp` doesn't have an association with `k`.
+If `mp` already contains an association with `k`, `mp` is returned as is."
+    (let (%Map tre) = mp)
+    (match (tree:insert tre (MapPair k v))
+      ((None) mp)
+      ((Some mp1) (%Map mp1))))
+
+  ;; Mapping API
+  (declare replace (Ord :key => OrdMap :key :value -> :key -> :value -> OrdMap :key :value))
+  (define (replace mp k v)
+    "Returns an OrdMap in which the key `k` is associated with `v` replaced
+from `mp`, when `mp` already has an association with `k`.
+If `mp` doesn't has an association with `k`, `mp` is returned as is."
+    (let (%Map tre) = mp)
+    (match (tree:replace tre (MapPair k v))
+      ((None) mp)
+      ((Some (Tuple tre _)) (%Map tre))))
+
+  ;; Mapping API
+  (declare remove (Ord :key => OrdMap :key :value -> :key -> OrdMap :key :value))
+  (define (remove mp k)
+    "Returns an OrdMap in which the association with key 'k' is removed from
+`mp`.  If `mp` doesn't have an association with `k`, it is returned as is."
+    (let (%Map tre) = mp)
+    (match (tree:remove tre (JustKey k))
+      ((None) mp)
+      ((Some mp1) (%Map mp1))))
+
+  #+obsoleted
   (declare insert ((Ord :key) => ((OrdMap :key :value) -> :key -> :value -> (Optional (OrdMap :key :value)))))
+  #+obsoleted
   (define (insert mp k v)
     "Associate K with V in MP. If MP already contains a mapping for K, return None."
     (let (%Map tre) = mp)
     (map %Map (tree:insert tre (MapPair k v))))
 
+  #+obsoleted
   (declare replace ((Ord :key) => ((OrdMap :key :value) -> :key -> :value -> (Optional (Tuple (OrdMap :key :value)
                                                                                            :value)))))
+  #+obsoleted
   (define (replace mp k v)
     "Change the association of K to V in MP. If MP did not already contain a mapping for K, return None."
     (let (%Map tre) = mp)
@@ -129,8 +175,10 @@ Any of these values can be None if there's no such entry."
        (Some (Tuple (%Map new-tre)
                     (value removed-pair))))))
 
+  #+obsoleted
   (declare replace-or-insert ((Ord :key) => ((OrdMap :key :value) -> :key -> :value -> (Tuple (OrdMap :key :value)
                                                                                            (Optional :value)))))
+  #+obsoleted
   (define (replace-or-insert mp k v)
     "Update MP to associate K with V.
 
@@ -139,7 +187,9 @@ If MP already contains a mapping for K, replace it and return the old value."
     (let (Tuple new-tre removed-pair) = (tree:replace-or-insert tre (MapPair k v)))
     (Tuple (%Map new-tre) (map value removed-pair)))
 
+  #+obsoleted
   (declare insert-or-replace ((Ord :key) => ((OrdMap :key :value) -> :key -> :value -> (OrdMap :key :value))))
+  #+obsoleted
   (define (insert-or-replace mp k v)
     "Update MP to associate K with V.
 
@@ -149,7 +199,9 @@ Like `replace-or-insert', but prioritizing insertion as a use case."
     (let (%Map tre) = mp)
     (%Map (tree:insert-or-replace tre (MapPair k v))))
 
+  #+obsoleted
   (declare remove ((Ord :key) => ((OrdMap :key :value) -> :key -> (Optional (OrdMap :key :value)))))
+  #+obsoleted
   (define (remove mp k)
     "Remove the mapping associated with K in MP. If K does not have a value in MP, return None."
     (let (%Map tre) = mp)
@@ -207,7 +259,52 @@ If `coll` contains duplicate keys, later values will overwrite earlier values."
   (define-instance (Ord :key => iter:FromIterator (OrdMap :key :value) (Tuple :key :value))
     (define iter:collect! collect!))
 
+
+  ;; Mapping API
+  (declare update (Ord :key => OrdMap :key :value -> :key
+                       -> (Optional :value -> Tuple (Optional :value) :a)
+                       -> Tuple (OrdMap :key :value) :a))
+  (define (update mp k f)
+    "Lookup an association with `k` in `mp`.  If there's an entry, call `f`
+with its value wrapped with Some.  If there isn't an entry, call 'f' with
+None.  `f` must terun a tuple of possible new value and an auxiliary
+result.
+If the fst of `f`'s return value is Some, its content is inserted into
+`mp` in association with `k`.   If the fst of `f`'s return value is None,
+an association with `k` in `mp` is removed.  A possibly updated mapping
+is returned as the fst element of the tuple.
+The auxiliary result from `f` is returnd as the snd result.
+
+This can be used for the caller to obtain the previous state along
+updated map.  For example, the following code inserts an entry (k, v)
+into mp, and obtain (Some v') or None in the second value of the
+result, where v' is the previous value associated with k.
+
+
+```
+(update mp k (Tuple v))
+```
+"
+    (let (%Map tre) = mp)
+    ;; Temporary solution; should be implemented in tree level.
+    (match (tree:lookup tre (JustKey k))
+      ((None)
+       (match (f None)
+         ((Tuple (None) aux) (Tuple mp aux))
+         ((Tuple (Some new-v) aux)
+          (Tuple (%Map (tree:insert-or-replace tre (MapPair k new-v))) aux))))
+      ((Some (MapPair _ old-v))
+       (match (f (Some old-v))
+         ((Tuple (None) aux)
+          (match (tree:remove tre (JustKey k))
+            ((None) (error "this can't happen"))
+            ((Some tre) (Tuple (%Map tre) aux))))
+         ((Tuple (Some new-v) aux)
+          (Tuple (%Map (tree:insert-or-replace tre (MapPair k new-v))) aux))))))
+
+  #+obsoleted
   (declare update ((Ord :key) => (:value -> :value) -> (OrdMap :key :value) -> :key -> (Optional (OrdMap :key :value))))
+  #+obsoleted
   (define (update func mp key)
     "Apply FUNC to the value corresponding to KEY in MP, returning a new `OrdMap' which maps KEY to the result of the function."
     (let (%Map tre) = mp)
