@@ -242,7 +242,7 @@ Like `replace-or-insert', but prioritizing insertion as a use case."
 
 If `iter` contains duplicate keys, later values will overwrite earlier values."
     (iter:fold! (fn (mp tpl)
-                  (uncurry (insert-or-replace mp) tpl))
+                  (uncurry (insert mp) tpl))
                 empty
                 iter))
 
@@ -252,7 +252,7 @@ If `iter` contains duplicate keys, later values will overwrite earlier values."
 
 If `coll` contains duplicate keys, later values will overwrite earlier values."
     (fold (fn (mp tpl)
-            (uncurry (insert-or-replace mp) tpl))
+            (uncurry (insert mp) tpl))
           empty
           coll))
 
@@ -300,7 +300,9 @@ result, where v' is the previous value associated with k.
             ((None) (error "this can't happen"))
             ((Some tre) (Tuple (%Map tre) aux))))
          ((Tuple (Some new-v) aux)
-          (Tuple (%Map (tree:insert-or-replace tre (MapPair k new-v))) aux))))))
+          (Tuple (%Map (tree:insert-or-replace tre (MapPair k new-v))) aux))))
+      ((Some (JustKey _))
+       (error "OrdMap contains `JustKey` rather than `MapPair`"))))
 
   #+obsoleted
   (declare update ((Ord :key) => (:value -> :value) -> (OrdMap :key :value) -> :key -> (Optional (OrdMap :key :value))))

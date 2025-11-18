@@ -175,9 +175,9 @@
 
 (define-test map-from-iter-equiv-to-manual-construction ()
   (let manual = (the (ordmap:OrdMap Integer String)
-                     (ordmap:insert-or-replace
-                      (ordmap:insert-or-replace
-                       (ordmap:insert-or-replace ordmap:empty 0 "zero")
+                     (ordmap:insert
+                      (ordmap:insert
+                       (ordmap:insert ordmap:empty 0 "zero")
                        11 "eleven")
                       5 "five")))
   (let iterated = (iter:collect! (iter:into-iter (the (List (Tuple Integer String))
