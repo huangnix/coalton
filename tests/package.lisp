@@ -39,6 +39,7 @@
    (#:array #:coalton-library/lisparray)
    (#:ordtree #:coalton-library/ordtree)
    (#:ordmap #:coalton-library/ordmap)
+   (#:ordtree2 #:coalton-library/ordtree2)
    (#:result #:coalton-library/result)
    (#:seq #:coalton-library/seq)
    (#:file #:coalton-library/file)
