@@ -89,8 +89,7 @@ an error is thrown."
       (dep t)
       True))
 
-  ;;; searching trees
-
+  ;;; searching
   (declare lookup (Ord :elt => Tree :elt -> :elt -> Optional :elt))
   (define (lookup haystack needle)
     "If HAYSTACK contains an element `==` to NEEDLE, return it."
@@ -111,6 +110,7 @@ an error is thrown."
     (match t
       ((L2 a) (N2 Empty a Empty))
       ((N3 t1 a1 t2 a2 t3) (N2 (N2 t1 a1 t2) a2 (N1 t3)))
+      ((N1 t) t)
       (_ t)))
 
   (declare make-n1 (Tree :elt -> Tree :elt))
@@ -121,9 +121,9 @@ an error is thrown."
       ((N3 t1 a1 t2 a2 t3) (N2 (N2 t1 a1 t2) a2 (N1 t3)))
       (_ (N1 t))))
 
-  (declare make-n2 (Tree :elt -> :elt -> Tree :elt -> Tree :elt))
+  (declare make-n2i (Tree :elt -> :elt -> Tree :elt -> Tree :elt))
   (inline)
-  (define (make-n2 tl a tr)
+  (define (make-n2i tl a tr)
     (match tl
       ((L2 a1) (N3 Empty a1 Empty a tr))
       ((N3 t1 a1 t2 a2 t3)
@@ -133,6 +133,61 @@ an error is thrown."
       ((N1 t1)
        (match tr
          ((N3 t2 a2 t3 a3 t4) (N2 (N2 t1 a t2) a2 (N2 t3 a3 t4)))
+         ((L2 a2)             (N3 tl a Empty a2 Empty))
+         ((N1 t2)             (N1 (N2 t1 a t2)))
+         (_                   (N2 tl a tr))))
+      ((N2 _ _ _)
+       (match tr
+         ((N3 t2 a2 t3 a3 t4) (N3 tl a (N1 t2) a2 (N2 t3 a3 t4)))
+         ((L2 a2)             (N3 tl a Empty a2 Empty))
+         (_                   (N2 tl a tr))))
+      (_
+       (match tr
+         ((L2 a2)             (N3 tl a Empty a2 Empty))
+         (_                   (N2 tl a tr))))))
+
+  (declare make-n2 (Tree :elt -> :elt -> Tree :elt -> Tree :elt))
+  (inline)
+  (define (make-n2 tl a tr)
+    (match tl
+      ((L2 a1) (N3 Empty a1 Empty a tr))
+      ((N3 t1 a1 t2 a2 t3)
+       (match tr
+         ((N1 t4) (N2 (N2 t1 a1 t2) a2 (N2 t3 a t4)))
+         (_       (N3 (N2 t1 a1 t2) a2 (N1 t3) a tr))))
+      ((N1 (N1 t1))
+       (match tr
+         ((N2 (N1 t2) a2 (= t3 (N2 _ _ _))) (N1 (N2 (N2 t1 a t2) a2 t3)))
+         ((N2 (N2 t2 a2 t3) a3 (N1 t4))     (N1 (N2 (N2 t1 a t2) a2
+                                                    (N2 t3 a3 t4))))
+         ((N2 (= t2 (N2 _ _ _)) a2 (= t3 (N2 _ _ _)))
+                                            (N2 (N2 (N1 t1) a t2) a2
+                                                (N1 t3)))
+         ((N1 t2)                           (N1 (N2 (N1 t1) a t2)))
+         (_                                 (N2 tl a tr))))
+      ((N1 t1)
+       (match tr
+         ((N3 t2 a2 t3 a3 t4) (N2 (N2 t1 a t2) a2 (N2 t3 a3 t4)))
+         ((L2 a2)             (N3 tl a Empty a2 Empty))
+         ((N1 t2)             (N1 (N2 t1 a t2)))
+         (_                   (N2 tl a tr))))
+      ((N2 (N1 t1) a1 (N2 t2 a2 t3))
+       (match tr
+         ((N1 (N1 t4))        (N1 (N2 (N2 t1 a1 t2) a2
+                                      (N2 t3 a t4))))
+         ((N3 t2 a2 t3 a3 t4) (N3 tl a (N1 t2) a2 (N2 t3 a3 t4)))
+         ((L2 a2)             (N3 tl a Empty a2 Empty))
+         (_                   (N2 tl a tr))))
+      ((N2 (= t1 (N2 _ _ _)) a1 (N1 t2))
+       (match tr
+         ((N1 (N1 t3))        (N1 (N2 t1 a1 (N2 t2 a t3))))
+         ((N3 t2 a2 t3 a3 t4) (N3 tl a (N1 t2) a2 (N2 t3 a3 t4)))
+         ((L2 a2)             (N3 tl a Empty a2 Empty))
+         (_                   (N2 tl a tr))))
+      ((N2 (= t1 (N2 _ _ _)) a1 (= t2 (N2 _ _ _)))
+       (match tr
+         ((N1 (= t3 (N1 _)))  (N2 (N1 t1) a1 (N2 t2 a t3)))
+         ((N3 t2 a2 t3 a3 t4) (N3 tl a (N1 t2) a2 (N2 t3 a3 t4)))
          ((L2 a2)             (N3 tl a Empty a2 Empty))
          (_                   (N2 tl a tr))))
       ((N2 _ _ _)
@@ -154,9 +209,9 @@ an error is thrown."
                    ((N1 t1)    (make-n1 (ins t1)))
                    ((N2 l b r)
                     (match (<=> a b)
-                      ((LT)    (make-n2 (ins l) b r))
+                      ((LT)    (make-n2i (ins l) b r))
                       ((EQ)    (N2 l a r))
-                      ((GT)    (make-n2 l b (ins r)))))
+                      ((GT)    (make-n2i l b (ins r)))))
                    (_ (stray-node))))))
       (make-root (ins t))))
 
@@ -168,12 +223,37 @@ an error is thrown."
                    ((N1 t1)    (make-n1 (rep t1)))
                    ((N2 l b r)
                     (match (<=> a b)
-                      ((LT)    (make-n2 (rep l) b r))
+                      ((LT)    (make-n2i (rep l) b r))
                       ((EQ)    (N2 l b r))
-                      ((GT)    (make-n2 l b (rep r)))))
+                      ((GT)    (make-n2i l b (rep r)))))
                    (_ (stray-node))))))
       (make-root (rep t))))
 
+  (declare remove (Ord :elt => Tree :elt -> :elt -> Tree :elt))
+  (define (remove t a)
+    (let ((del (fn (n)
+                 (match n
+                   ((Empty) Empty)
+                   ((N1 t)  (N1 (del t)))
+                   ((N2 l b r)
+                    (match (<=> a b)
+                      ((LT) (make-n2 (del l) b r))
+                      ((EQ) (match (split-min r)
+                              ((None)               (N1 l))
+                              ((Some (Tuple a1 r1)) (make-n2 l a1 r1))))
+                      ((GT) (make-n2 l b (del r)))))
+                   (_ (stray-node))))))
+      (make-root (del t))))
 
-
+  (define (split-min n)
+    (match n
+      ((Empty)       None)
+      ((N1 t)        (match (split-min t)
+                       ((None)              None)
+                       ((Some (Tuple a t1)) (Some (Tuple a (N1 t1))))))
+      ((N2 t1 a1 t2) (match (split-min t1)
+                       ((None)               (Some (Tuple a1 (N1 t2))))
+                       ((Some (Tuple a t11)) (Some (Tuple a
+                                                          (make-n2 t11 a1 t2))))))
+      (_ (stray-node))))
   )

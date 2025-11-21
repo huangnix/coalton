@@ -10,11 +10,31 @@
   (is (== (ordtree2:lookup b 1) (Some 1)))
 
   (let data = (map (fn (k) (bits:and #xffffffff (* k 2654435761)))
-                   (range 0 32768)))
-  (let ((c (fold ordtree2:insert a data)))
-    (is (some? (fold (fn (m k) (>>= (ordtree2:lookup c k) Some))
-                     (Some 1) data)))
-    (is (ordtree2::consistent? c)))
+                   (range 0 16384)))
+
+  (let c = (fold ordtree2:insert a data))
+  (is (some? (fold (fn (m k) (>>= (ordtree2:lookup c k) Some))
+                   (Some 1) data)))
+  (is (ordtree2::consistent? c))
+
+  (let d = (fold (fn (m k)
+                   (match (ordtree2:lookup m k)
+                     ((None) (lisp :a (k)
+                               (cl:error "Key ~a dissapeared unexpectedly" k)))
+                     ((Some _) Unit))
+                   (let ((m1 (ordtree2:remove m k)))
+                     (match (ordtree2:lookup m1 k)
+                       ((None) Unit)
+                       ((Some _) (lisp :a (k)
+                                   (cl:error "Key ~a failed to be removed" k))))
+                     (if (ordtree2::consistent? m1)
+                         Unit
+                         (lisp :a (k)
+                           (cl:error "Key ~a removal caused inconsistency" k)))
+                     m1))
+                 c data))
+  (is (ordtree2:empty? d))
+
   )
 
 (define-test ordtree2-simple-bench ()
