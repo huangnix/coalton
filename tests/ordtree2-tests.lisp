@@ -10,25 +10,38 @@
   (is (== (ordtree2:lookup b 1) (Some 1)))
 
   (let data = (map (fn (k) (bits:and #xffffffff (* k 2654435761)))
-                   (range 0 131072)))
+                   (range 0 32768)))
+  (let ((c (fold ordtree2:insert a data)))
+    (is (some? (fold (fn (m k) (>>= (ordtree2:lookup c k) Some))
+                     (Some 1) data)))
+    (is (ordtree2::consistent? c)))
+  )
 
-  #+ignore
-  (let c = (fold ordtree2:insert b data))
+(define-test ordtree2-simple-bench ()
 
-  (let ((t0 (time (fn ()
-                    (let ((c (fold ordtree2:insert a data)))
-                      (fold (fn (_ k) (ordtree2:lookup c k)) None data)))))
-        (t1 (time (fn ()
-                    (let ((c (fold ordtree:insert-or-replace
-                                   ordtree:empty data)))
-                      (fold (fn (_ k) (ordtree:lookup c k)) None data))))))
-    (lisp :a (t0 t1) (cl:format cl:t "~s~%~s~%" t0 t1)))
+  (let bigdata = (map (fn (k) (bits:and #xffffffff (* k 2654435761)))
+                      (range 0 131072)))
 
-  #+ignore
-  (is (== (fold (fn (r k) (match (ordtree2:lookup c k)
-                            ((None) (Cons k r))
-                            ((Some _) r)))
-                Nil
-                data)
-          Nil))
+  (let (Tuple ma ta0) =
+    (time (fn () (fold ordtree2:insert (the (ordtree2:Tree Integer)
+                                            ordtree2:empty)
+                bigdata))))
+  (let (Tuple _ ta1) =
+    (time (fn () (fold (fn (_ k) (ordtree2:lookup ma k)) None bigdata))))
+
+  (let (Tuple mb tb0) =
+    (time (fn () (fold ordtree:insert-or-replace
+                       ordtree:empty bigdata))))
+  (let (Tuple _ tb1) =
+    (time (fn () (fold (fn (_ k) (ordtree:lookup mb k)) None bigdata))))
+
+  (lisp :a (ta0 ta1 tb0 tb1)
+    (cl:format cl:t "~%Brother tree:~%~
+                     insert ~s~%~
+                     lookup ~s~%~
+                     Red-Black tree:~%~
+                     insert ~s~%~
+                     lookup ~s~%"
+               ta0 ta1 tb0 tb1))
+
   )

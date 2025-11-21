@@ -4,7 +4,8 @@
    #:coalton-library/classes
    #:coalton-library/hash
    #:coalton-library/tuple
-   #:coalton-library/functions)
+   #:coalton-library/functions
+   #:coalton-library/math)
   (:local-nicknames
    (#:iter #:coalton-library/iterator)
    (#:cell #:coalton-library/cell))
@@ -67,6 +68,26 @@
   (declare stray-node (Unit -> :a))
   (define (stray-node)
     (error "Implementation error: Encountered ephemeral node during traversal"))
+
+
+  (declare consistent? (Tree :elt -> Boolean))
+  (define (consistent? t)
+    "Check invariance condition of the tree `t`.  If the condition is broken,
+an error is thrown."
+    (let ((dep (fn (t)
+                 "Returns the depth of nullary tree, while checking other conditions."
+                 (match t
+                   ((Empty) 0)
+                   ((N1 (N1 _)) (error "Unary node has unary child"))
+                   ((N1 t) (1+ (dep t)))
+                   ((N2 l _ r) (let ((dl (dep l))
+                                     (dr (dep r)))
+                                 (if (== dl dr)
+                                     (1+ dl)
+                                     (error "Depth inbalance"))))
+                   (_ (error "Ephemeral node"))))))
+      (dep t)
+      True))
 
   ;;; searching trees
 
