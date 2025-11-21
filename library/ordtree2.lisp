@@ -200,7 +200,6 @@ an error is thrown."
          ((L2 a2)             (N3 tl a Empty a2 Empty))
          (_                   (N2 tl a tr))))))
 
-
   (declare insert (Ord :elt => Tree :elt -> :elt -> Tree :elt))
   (define (insert t a)
     (let ((ins (fn (n)
@@ -246,6 +245,7 @@ an error is thrown."
       (make-root (del t))))
 
   (define (split-min n)
+    "Helper for removal"
     (match n
       ((Empty)       None)
       ((N1 t)        (match (split-min t)
@@ -256,4 +256,47 @@ an error is thrown."
                        ((Some (Tuple a t11)) (Some (Tuple a
                                                           (make-n2 t11 a1 t2))))))
       (_ (stray-node))))
+
+  (declare update (Ord :elt => Tree :elt -> :elt
+                       -> (Optional :elt -> (Tuple (Optional :elt) :a))
+                       -> (Tuple (Tree :elt) :a)))
+  (define (update t a f)
+    (let ((unchanged? (fn (a b)
+                        (lisp Boolean (a b)
+                          (cl:eq a b))))
+          (walk (fn (n)
+                  (match n
+                    ((Empty)
+                     (match (f None)
+                       ((Tuple (None) aux) (Tuple n aux))
+                       ((Tuple (Some x) aux)
+                        (Tuple (L2 x) aux)))) ; insert
+                    ((N1 t1)
+                     (let (Tuple t2 aux) = (walk t1))
+                     (if (unchanged? t1 t2)
+                         (Tuple n aux)
+                         (Tuple (make-n1 t2) aux)))
+                    ((N2 l b r)
+                     (match (<=> a b)
+                       ((LT) (let (Tuple ll aux) = (walk l))
+                             (if (unchanged? l ll)
+                                 (Tuple n aux)
+                                 (Tuple (make-n2 ll b r) aux)))
+                       ((EQ) (match (f (Some b))
+                               ((Tuple (None) aux) ; delete
+                                (Tuple (N1 l) aux))
+                               ((Tuple (Some b2) aux) ;replace
+                                ;; NB: `f` must guarantee that the new element
+                                ;; is `==` to the old element.  Otherwise
+                                ;; the tree silently breaks.
+                                (if (unchanged? b b2)
+                                    (Tuple n aux)
+                                    (Tuple (N2 l b2 r) aux)))))
+                       ((GT) (let (Tuple rr aux) = (walk r))
+                             (if (unchanged? r rr)
+                                 (Tuple n aux)
+                                 (Tuple (make-n2 l b rr) aux)))))
+                    (_ (stray-node))))))
+      (let (Tuple t2 aux) = (walk t))
+      (Tuple (make-root t2) aux)))
   )
