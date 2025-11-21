@@ -103,7 +103,8 @@ an error is thrown."
          ((GT) (lookup right needle))))
       (_ (stray-node))))
 
-  ;; smart constructors; eliminating intermediate node
+  ;; Smart constructors; eliminating intermediate node and balancing the
+  ;; subtree.  See the paper for the details.
   (declare make-root (Tree :elt -> Tree :elt))
   (inline)
   (define (make-root t)
@@ -124,6 +125,7 @@ an error is thrown."
   (declare make-n2i (Tree :elt -> :elt -> Tree :elt -> Tree :elt))
   (inline)
   (define (make-n2i tl a tr)
+    "Smart N2 constructor for insertion/replace only"
     (match tl
       ((L2 a1) (N3 Empty a1 Empty a tr))
       ((N3 t1 a1 t2 a2 t3)
@@ -149,6 +151,8 @@ an error is thrown."
   (declare make-n2 (Tree :elt -> :elt -> Tree :elt -> Tree :elt))
   (inline)
   (define (make-n2 tl a tr)
+    "Generic N2 constructor.  This handles both deletion and insertion,
+so that it can be directly used for update procedure."
     (match tl
       ((L2 a1) (N3 Empty a1 Empty a tr))
       ((N3 t1 a1 t2 a2 t3)

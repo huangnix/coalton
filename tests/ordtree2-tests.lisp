@@ -10,15 +10,16 @@
   (let b = (ordtree2:insert a 1))
   (is (== (ordtree2:lookup b 1) (Some 1)))
 
+  ;; This data sequence is long enough to cover the branches in
+  ;; rebalancing routines.
   (let data = (map (fn (k) (bits:and #xffffffff (* k 2654435761)))
-                   (range 0 16384)))
+                   (range 0 4096)))
 
   (let c = (fold ordtree2:insert a data))
   (is (some? (fold (fn (m k) (>>= (ordtree2:lookup c k) Some))
                    (Some 1) data)))
   (is (ordtree2::consistent? c))
 
-  #+tmp
   (let d = (fold (fn (m k)
                    (match (ordtree2:lookup m k)
                      ((None) (lisp :a (k)
@@ -35,7 +36,6 @@
                            (cl:error "Key ~a removal caused inconsistency" k)))
                      m1))
                  c data))
-  #+tmp
   (is (ordtree2:empty? d))
 
   (let (Tuple bb prev) = (ordtree2:update a 1 (fn (z) (Tuple (Some 1) z))))
