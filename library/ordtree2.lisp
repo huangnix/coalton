@@ -15,6 +15,7 @@
    #:empty?
    #:lookup
    #:insert
+   #:adjoin
    #:replace
    #:remove
    #:update
@@ -22,7 +23,11 @@
    #:min-element
    #:lookup-neighbors
    #:increasing-order
-   #:decreasing-order))
+   #:decreasing-order
+   #:union
+   #:intersection
+   #:difference
+   #:xor))
 
 (in-package :coalton-library/ordtree2)
 
@@ -248,12 +253,12 @@ entry which is `==` to `a`.  The original entry is replaced with the given
 `a`.  If `t` doesn't have an entry `==` to `a`, `t` is returned as is."
     (let ((rep (fn (n)
                  (match n
-                   ((Empty)    (L2 a))
+                   ((Empty)    Empty)
                    ((N1 t1)    (make-n1 (rep t1)))
                    ((N2 l b r)
                     (match (<=> a b)
                       ((LT)    (make-n2i (rep l) b r))
-                      ((EQ)    (N2 l b r))
+                      ((EQ)    (N2 l a r))
                       ((GT)    (make-n2i l b (rep r)))))
                    (_ (stray-node))))))
       (make-root (rep t))))
@@ -349,7 +354,13 @@ info, though; see OrdMap implementation."
                     (_ (stray-node))))))
       (let (Tuple t2 aux) = (walk t))
       (Tuple (make-root t2) aux)))
+  )
 
+;;
+;; Neighborhood
+;;
+
+(coalton-toplevel
   ;; API
   (declare max-element (Ord :elt => OrdTree :elt -> Optional :elt))
   (define (max-element tre)
@@ -403,6 +414,43 @@ if there's no such element."
                    (Tuple3 lo1 (Some elt) hi1)))
            ((GT) (lup right (Some elt) hi))))
         (_ (stray-node)))))
+  )
+
+;;
+;; Set operations
+;;
+
+(coalton-toplevel
+  (declare union (Ord :elt => OrdTree :elt -> OrdTree :elt -> OrdTree :elt))
+  (define (union a b)
+    "Raturns an OrdTree that contains all the elements from `a` and `b`.
+If both OrdTrees has the same (`==`) element, the one from `a` is taken."
+    (iter:fold! adjoin a (increasing-order b)))
+
+  (declare intersection (Ord :elt => OrdTree :elt -> OrdTree :elt -> OrdTree :elt))
+  (define (intersection a b)
+    "Raturns an OrdTree that contains elements that appear in both `a` and `b`.
+The resulting elements are from `a`."
+    (iter:fold! (fn (m k)
+                  (match (lookup b k)
+                    ((None) m)
+                    ((Some _) (insert m k))))
+                Empty (increasing-order a)))
+
+  (declare difference (Ord :elt => OrdTree :elt -> OrdTree :elt -> OrdTree :elt))
+  (define (difference a b)
+    "Raturns an OrdTree that contains elements in `a` but not in `b`."
+    (iter:fold! remove a (increasing-order b)))
+
+  (declare xor (Ord :elt => OrdTree :elt -> OrdTree :elt -> OrdTree :elt))
+  (define (xor a b)
+    "Raturns an OrdTree that contains elements either in `a` or in `b`,
+but not in both."
+    (iter:fold! (fn (m k)
+                  (match (lookup b k)
+                    ((None) (insert m k))
+                    ((Some _) m)))
+                Empty (increasing-order a)))
   )
 
 ;;
@@ -469,4 +517,12 @@ This is same as (iter:into-iter tre)."
       (iter:fold! f seed (increasing-order t)))
     (define (foldr f seed t)
       (iter:fold! (flip f) seed (decreasing-order t))))
+
+  (define-instance (Functor OrdTree)
+    (define (map f tre)
+      (match tre
+        ((Empty) Empty)
+        ((N1 t) (map f t))
+        ((N2 l e r) (N2 (map f l) (f e) (map f r)))
+        (_ (stray-node)))))
   )
