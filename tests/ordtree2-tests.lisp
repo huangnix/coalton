@@ -2,7 +2,7 @@
 
 (define-test ordtree2-basic-test ()
   "OrdTree basic operations"
-  (let a = (the (ordtree2:Tree Integer) ordtree2:empty))
+  (let a = (the (ordtree2:OrdTree Integer) ordtree2:empty))
 
   (is (ordtree2:empty? a))
   (is (== (ordtree2:lookup a 1) None))
@@ -76,7 +76,7 @@
 
 (define-test ordtree2-update-test ()
   "OrdTree update operations with more involved update function"
-  (let a = (the (ordtree2:Tree OrdTreeTestEntry)
+  (let a = (the (ordtree2:OrdTree OrdTreeTestEntry)
                 (fold ordtree2:insert ordtree2:empty
                       (make-list (OrdTreeTestEntry 1 "one")
                                  (OrdTreeTestEntry 2 "two")
@@ -147,7 +147,78 @@
   )
 
 (coalton-toplevel
-  (define (ordtree2-bench ndata)
+  (define (list->ordtree lis)
+    (the (ordtree2:OrdTree :a) (iter:collect! (iter:into-iter lis)))))
+
+(define-test ordtree2-instance-test ()
+  (let a = (the (ordtree2:OrdTree Integer) (list->ordtree (range 0 10))))
+
+  (is (== (foldr Cons Nil a)
+          (range 0 10)))
+  (is (== (reverse (fold (flip Cons) Nil a))
+          (range 0 10)))
+
+  (is (== (the (ordtree2:OrdTree Integer) (list->ordtree (reverse (range 0 10))))
+          a))
+  )
+
+(define-test ordtree2-neighbors-test ()
+  (is (== (ordtree2:max-element (list->ordtree (make-list 1 2 3 4 5 6 7 8 9)))
+          (Some 9)))
+  (is (== (ordtree2:min-element (list->ordtree (make-list 1 2 3 4 5 6 7 8 9)))
+          (Some 1)))
+  (is (== (ordtree2:max-element (list->ordtree (make-list 1)))
+          (Some 1)))
+  (is (== (ordtree2:min-element (list->ordtree (make-list 1)))
+          (Some 1)))
+  (is (== (ordtree2:max-element (the (ordtree2:OrdTree Integer) ordtree2:empty))
+          None))
+  (is (== (ordtree2:min-element (the (ordtree2:OrdTree Integer) ordtree2:empty))
+          None))
+
+  (let ((t (list->ordtree (the (List Integer) (make-list 1 3 5 7 9)))))
+
+    (is (== (ordtree2:lookup-neighbors t 0)
+            (Tuple3 None None (Some 1))))
+    (is (== (ordtree2:lookup-neighbors t 1)
+            (Tuple3 None (Some 1) (Some 3))))
+    (is (== (ordtree2:lookup-neighbors t 2)
+            (Tuple3 (Some 1) None (Some 3))))
+    (is (== (ordtree2:lookup-neighbors t 3)
+            (Tuple3 (Some 1) (Some 3) (Some 5))))
+    (is (== (ordtree2:lookup-neighbors t 4)
+            (Tuple3 (Some 3) None (Some 5))))
+    (is (== (ordtree2:lookup-neighbors t 5)
+            (Tuple3 (Some 3) (Some 5) (Some 7))))
+    (is (== (ordtree2:lookup-neighbors t 6)
+            (Tuple3 (Some 5) None (Some 7))))
+    (is (== (ordtree2:lookup-neighbors t 7)
+            (Tuple3 (Some 5) (Some 7) (Some 9))))
+    (is (== (ordtree2:lookup-neighbors t 8)
+            (Tuple3 (Some 7) None (Some 9))))
+    (is (== (ordtree2:lookup-neighbors t 9)
+            (Tuple3 (Some 7) (Some 9) None)))
+    (is (== (ordtree2:lookup-neighbors t 10)
+            (Tuple3 (Some 9) None None))))
+
+  ;; edge cases
+  (is (== (ordtree2:lookup-neighbors ordtree2:Empty 1)
+          (Tuple3 None None None)))
+  (is (== (ordtree2:lookup-neighbors (list->ordtree (make-list 1)) 1)
+          (Tuple3 None (Some 1) None)))
+  )
+
+;;
+;; The following code is for simple benchmarking of new and old implementations
+;; of OrdTree.  To run it, you need to put old ordtree.lisp in a different
+;; name and load it with a package nickname 'ordtree-old'.
+;; I keep it so that the code is recorded in the main commit history, just in
+;; case if someone wants to redo the bench.  Can be deleted in future.
+;;
+
+#+ignore
+(coalton-toplevel
+  (define (ordtree-bench ndata)
     (let bigdata = (map (fn (k) (bits:and #xffffffff (* k 2654435761)))
                         (range 0 ndata)))
     (let nrepeat = (unwrap-as UFix (math:ceiling/ 1048576 ndata)))
@@ -159,31 +230,31 @@
     (experimental:dotimes (_n nrepeat)
 
       (let (Tuple ma ta0) =
-        (time (fn () (fold ordtree2:insert (the (ordtree2:Tree Integer)
-                                                ordtree2:empty)
+        (time (fn () (fold ordtree:insert (the (ordtree:OrdTree Integer)
+                                               ordtree:empty)
                            bigdata))))
       (inctime! ta0 0)
 
       (let (Tuple _ ta1) =
-        (time (fn () (fold (fn (_ k) (ordtree2:lookup ma k)) None bigdata))))
+        (time (fn () (fold (fn (_ k) (ordtree:lookup ma k)) None bigdata))))
       (inctime! ta1 1)
 
       (let (Tuple _ ta2) =
-        (time (fn () (fold (fn (m k) (ordtree2:remove m k)) ma bigdata))))
+        (time (fn () (fold (fn (m k) (ordtree:remove m k)) ma bigdata))))
       (inctime! ta2 2)
 
       (let (Tuple mb tb0) =
-        (time (fn () (fold ordtree:insert-or-replace
-                           ordtree:empty bigdata))))
+        (time (fn () (fold ordtree-old:insert-or-replace
+                           ordtree-old:empty bigdata))))
       (inctime! tb0 3)
 
       (let (Tuple _ tb1) =
-        (time (fn () (fold (fn (_ k) (ordtree:lookup mb k)) None bigdata))))
+        (time (fn () (fold (fn (_ k) (ordtree-old:lookup mb k)) None bigdata))))
       (inctime! tb1 4)
 
       (let (Tuple _ tb2) =
         (time (fn () (fold (fn (m k)
-                             (match (ordtree:remove m k)
+                             (match (ordtree-old:remove m k)
                                ((None) m)
                                ((Some mm) mm)))
                            mb bigdata))))
@@ -208,33 +279,10 @@
                  (cl:floor (cl:aref acctime 5) nrepeat))))
   )
 
-(coalton-toplevel
-  (define (list->ordtree lis)
-    (the (ordtree2:Tree :a) (iter:collect! (iter:into-iter lis)))))
-
-(define-test ordtree2-instance-test ()
-  (let a = (the (ordtree2:Tree Integer) (list->ordtree (range 0 10))))
-
-  (is (== (foldr Cons Nil a)
-          (range 0 10)))
-  (is (== (reverse (fold (flip Cons) Nil a))
-          (range 0 10)))
-
-  (is (== (the (ordtree2:Tree Integer) (list->ordtree (reverse (range 0 10))))
-          a))
-  )
-
-
-;(define-test ordtree2-neighbors-test ()
-;  )
-
-
-(define-test ordtree2-simple-bench ()
-
-  (ordtree2-bench 4096)
-  (ordtree2-bench 16384)
-  (ordtree2-bench 65536)
-  (ordtree2-bench 262144)
-  (ordtree2-bench 1048576)
-  ;(ordtree2-bench 4194304)
-  )
+#+ignore
+(define-test ordtree-simple-bench ()
+  (ordtree-bench 4096)
+  (ordtree-bench 16384)
+  (ordtree-bench 65536)
+  (ordtree-bench 262144)
+  (ordtree-bench 1048576))

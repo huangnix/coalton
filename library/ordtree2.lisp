@@ -11,7 +11,7 @@
    (#:cell #:coalton-library/cell))
   (:shadow #:empty)
   (:export
-   #:Tree #:empty
+   #:OrdTree #:empty
    #:empty?
    #:lookup
    #:insert
@@ -36,26 +36,26 @@
 
 (coalton-toplevel
 
-  (define-type (Tree :elt)
+  (define-type (OrdTree :elt)
     "A 1-2 brother tree, sorted by `<=>` and unique by `==`."
 
     Empty
     "exported; an empty tree."
 
-    (N1 (Tree :elt))
+    (N1 (OrdTree :elt))
     "unexported; unary node"
 
-    (N2 (Tree :elt) :elt (Tree :elt))
+    (N2 (OrdTree :elt) :elt (OrdTree :elt))
     "unexported; binary node"
 
-    (N3 (Tree :elt) :elt (Tree :elt) :elt (Tree :elt))
+    (N3 (OrdTree :elt) :elt (OrdTree :elt) :elt (OrdTree :elt))
     "unexported; ternary node - only appear intermediately during balancing"
 
     (L2 :elt)
     "unexported; leaf node - only appear intermediately during balancing"
     )
 
-  (declare empty? (Tree :elt -> Boolean))
+  (declare empty? (OrdTree :elt -> Boolean))
   (define (empty? t)
     (match t
       ((Empty) True)
@@ -66,7 +66,7 @@
   (define (stray-node)
     (error "Implementation error: Encountered ephemeral node during traversal"))
 
-  (declare consistent? (Tree :elt -> Boolean))
+  (declare consistent? (OrdTree :elt -> Boolean))
   (define (consistent? t)
     "Check invariance condition of the tree `t`.  If the condition is broken,
 an error is thrown."
@@ -88,7 +88,7 @@ an error is thrown."
   ;;; searching
 
   ;; API
-  (declare lookup (Ord :elt => Tree :elt -> :elt -> Optional :elt))
+  (declare lookup (Ord :elt => OrdTree :elt -> :elt -> Optional :elt))
   (inline)
   (define (lookup haystack needle)
     "If HAYSTACK contains an element `==` to NEEDLE, return it."
@@ -106,7 +106,7 @@ an error is thrown."
 
   ;; Smart constructors; eliminating intermediate node and balancing the
   ;; subtree.  See the paper for the details.
-  (declare make-root (Tree :elt -> Tree :elt))
+  (declare make-root (OrdTree :elt -> OrdTree :elt))
   (inline)
   (define (make-root t)
     (match t
@@ -115,7 +115,7 @@ an error is thrown."
       ((N1 t) t)
       (_ t)))
 
-  (declare make-n1 (Tree :elt -> Tree :elt))
+  (declare make-n1 (OrdTree :elt -> OrdTree :elt))
   (inline)
   (define (make-n1 t)
     (match t
@@ -123,7 +123,7 @@ an error is thrown."
       ((N3 t1 a1 t2 a2 t3) (N2 (N2 t1 a1 t2) a2 (N1 t3)))
       (_ (N1 t))))
 
-  (declare make-n2i (Tree :elt -> :elt -> Tree :elt -> Tree :elt))
+  (declare make-n2i (OrdTree :elt -> :elt -> OrdTree :elt -> OrdTree :elt))
   (inline)
   (define (make-n2i tl a tr)
     "Smart N2 constructor for insertion/replace only"
@@ -149,7 +149,7 @@ an error is thrown."
          ((L2 a2)             (N3 tl a Empty a2 Empty))
          (_                   (N2 tl a tr))))))
 
-  (declare make-n2 (Tree :elt -> :elt -> Tree :elt -> Tree :elt))
+  (declare make-n2 (OrdTree :elt -> :elt -> OrdTree :elt -> OrdTree :elt))
   (inline)
   (define (make-n2 tl a tr)
     "Generic N2 constructor.  This handles both deletion and insertion,
@@ -206,7 +206,7 @@ so that it can be directly used for update procedure."
          (_                   (N2 tl a tr))))))
 
   ;; API
-  (declare insert (Ord :elt => Tree :elt -> :elt -> Tree :elt))
+  (declare insert (Ord :elt => OrdTree :elt -> :elt -> OrdTree :elt))
   (define (insert t a)
     "Returns an ordtree that has an new entry `a` added to `t`.  If `t` already
 has an entry which is `==` to `a`,  The new ordtree has `a` in place of the
@@ -224,7 +224,7 @@ existing entry."
       (make-root (ins t))))
 
   ;; API
-  (declare adjoin (Ord :elt => Tree :elt -> :elt -> Tree :elt))
+  (declare adjoin (Ord :elt => OrdTree :elt -> :elt -> OrdTree :elt))
   (define (adjoin t a)
     "Returns an ordtree that has a new entry `a`.  If `t` already has an entry
 which is `==` to `a`, however, the original `t` is returned as is."
@@ -241,7 +241,7 @@ which is `==` to `a`, however, the original `t` is returned as is."
       (make-root (rep t))))
 
   ;; API
-  (declare replace (Ord :elt => Tree :elt -> :elt -> Tree :elt))
+  (declare replace (Ord :elt => OrdTree :elt -> :elt -> OrdTree :elt))
   (define (replace t a)
     "Returns an ordtree that has an entry `a` only if `t` already has an
 entry which is `==` to `a`.  The original entry is replaced with the given
@@ -259,7 +259,7 @@ entry which is `==` to `a`.  The original entry is replaced with the given
       (make-root (rep t))))
 
   ;; API
-  (declare remove (Ord :elt => Tree :elt -> :elt -> Tree :elt))
+  (declare remove (Ord :elt => OrdTree :elt -> :elt -> OrdTree :elt))
   (define (remove t a)
     "Returns an ordtree that is the same as `t` except that the entry
 which is `==` to `a` is removed.  If `t` does not have such an entry,
@@ -292,9 +292,9 @@ which is `==` to `a` is removed.  If `t` does not have such an entry,
       (_ (stray-node))))
 
   ;; API
-  (declare update (Ord :elt => Tree :elt -> :elt
+  (declare update (Ord :elt => OrdTree :elt -> :elt
                        -> (Optional :elt -> (Tuple (Optional :elt) :a))
-                       -> (Tuple (Tree :elt) :a)))
+                       -> (Tuple (OrdTree :elt) :a)))
   (define (update t a f)
     "Generic update.  Look for the element `a` in `t`.  If there's an entry,
 call `f` with the existing entry wrapped with Some.  If there isn't an entry,
@@ -351,29 +351,31 @@ info, though; see OrdMap implementation."
       (Tuple (make-root t2) aux)))
 
   ;; API
-  (declare max-element (Ord :elt => Tree :elt -> Optional :elt))
+  (declare max-element (Ord :elt => OrdTree :elt -> Optional :elt))
   (define (max-element tre)
     "Returns the maximum element in the tree, or None if the tree is empty."
     (match tre
       ((Empty) None)
       ((N1 t) (max-element t))
-      ((N2 _ elt (Empty)) (Some elt))
-      ((N2 _ _ r) (max-element r))
+      ((N2 _ elt r) (match (max-element r)
+                      ((None) (Some elt))
+                      (e e)))
       (_ (stray-node))))
 
   ;; API
-  (declare min-element (Ord :elt => Tree :elt -> Optional :elt))
+  (declare min-element (Ord :elt => OrdTree :elt -> Optional :elt))
   (define (min-element tre)
     "Returns the minimum element in the tree, or None if the tree is empty."
     (match tre
       ((Empty) None)
       ((N1 t) (max-element t))
-      ((N2 (Empty) elt _) (Some elt))
-      ((N2 l _ _) (min-element l))
+      ((N2 l elt _) (match (min-element l)
+                      ((None) (Some elt))
+                      (e e)))
       (_ (stray-node))))
 
   ;; API
-  (declare lookup-neighbors (Ord :elt => Tree :elt -> :elt
+  (declare lookup-neighbors (Ord :elt => OrdTree :elt -> :elt
                                  -> (Tuple3 (Optional :elt)
                                             (Optional :elt)
                                             (Optional :elt))))
@@ -410,7 +412,7 @@ if there's no such element."
 (coalton-toplevel
 
   ;; Note: We repurpose L2 node to keep element in the stack
-  (declare increasing-order (Tree :elt -> iter:Iterator :elt))
+  (declare increasing-order (OrdTree :elt -> iter:Iterator :elt))
   (define (increasing-order tre)
     "Returns an iterator that traverses elements in `tre` in increasing order.
 This is same as (iter:into-iter tre)."
@@ -429,7 +431,7 @@ This is same as (iter:into-iter tre)."
                      (_ (stray-node))))))
       (iter:new next!)))
 
-  (declare decreasing-order (Tree :elt -> iter:Iterator :elt))
+  (declare decreasing-order (OrdTree :elt -> iter:Iterator :elt))
   (define (decreasing-order tre)
     "Returns an iterator that traverses elements in `tre` in decreasing order."
     (let ((stack (cell:new (Cons tre Nil)))
@@ -447,22 +449,22 @@ This is same as (iter:into-iter tre)."
                      (_ (stray-node))))))
       (iter:new next!)))
 
-  (define-instance (iter:IntoIterator (Tree :elt) :elt)
+  (define-instance (iter:IntoIterator (OrdTree :elt) :elt)
     (define iter:into-iter increasing-order))
 
-  (define-instance (Ord :elt => iter:FromIterator (Tree :elt) :elt)
+  (define-instance (Ord :elt => iter:FromIterator (OrdTree :elt) :elt)
     (define (iter:collect! iter)
       (iter:fold! insert empty iter)))
 
-  (define-instance (Eq :elt => Eq (Tree :elt))
+  (define-instance (Eq :elt => Eq (OrdTree :elt))
     (define (== ta tb)
       (iter:elementwise==! (iter:into-iter ta) (iter:into-iter tb))))
 
-  (define-instance (Hash :elt => Hash (Tree :elt))
+  (define-instance (Hash :elt => Hash (OrdTree :elt))
     (define (hash t)
       (iter:elementwise-hash! (iter:into-iter t))))
 
-  (define-instance (Foldable Tree)
+  (define-instance (Foldable OrdTree)
     (define (fold f seed t)
       (iter:fold! f seed (increasing-order t)))
     (define (foldr f seed t)
