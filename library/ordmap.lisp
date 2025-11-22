@@ -6,7 +6,7 @@
    :coalton-library/tuple
    :coalton-library/functions)
   (:local-nicknames
-   (#:tree :coalton-library/ordtree2)
+   (#:tree :coalton-library/ordtree)
    (#:iter :coalton-library/iterator))
   (:shadow #:empty)
   (:export

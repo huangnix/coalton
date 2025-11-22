@@ -228,7 +228,7 @@ the computation."
      ;; Here, it's changing the BankState (which is a Map from String -> Account)
      ;; by inserting an account with its name as the key.
      (modify (fn (mp)
-               (m:insert-or-replace mp (.name acc) acc)))
+               (m:insert mp (.name acc) acc)))
      (pure (Ok acc)))))
 
 ;;; Finally, we'll create all of the functions that our "user" can use to
