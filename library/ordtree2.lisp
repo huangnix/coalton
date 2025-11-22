@@ -91,17 +91,20 @@ an error is thrown."
 
   ;;; searching
   (declare lookup (Ord :elt => Tree :elt -> :elt -> Optional :elt))
+  (inline)
   (define (lookup haystack needle)
     "If HAYSTACK contains an element `==` to NEEDLE, return it."
-    (match haystack
-      ((Empty) None)
-      ((N1 t) (lookup t needle))
-      ((N2 left elt right)
-       (match (<=> needle elt)
-         ((LT) (lookup left needle))
-         ((EQ) (Some elt))
-         ((GT) (lookup right needle))))
-      (_ (stray-node))))
+    (let ((lup (fn (t)
+                 (match t
+                   ((Empty) None)
+                   ((N1 t) (lup t))
+                   ((N2 left elt right)
+                    (match (<=> needle elt)
+                      ((LT) (lup left))
+                      ((EQ) (Some elt))
+                      ((GT) (lup right))))
+                   (_ (stray-node))))))
+      (lup haystack)))
 
   ;; Smart constructors; eliminating intermediate node and balancing the
   ;; subtree.  See the paper for the details.

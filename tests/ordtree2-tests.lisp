@@ -146,31 +146,74 @@
              (Some (OrdTreeTestEntry 3 "san"))))))
   )
 
+(coalton-toplevel
+  (define (ordtree2-bench ndata)
+    (let bigdata = (map (fn (k) (bits:and #xffffffff (* k 2654435761)))
+                        (range 0 ndata)))
+    (let nrepeat = (unwrap-as UFix (math:ceiling/ 1048576 ndata)))
+    (let acctime = (array:make 6 0))
+    (let inctime! =
+      (fn (dt kind)
+        (array:set! acctime kind (+ dt (array:aref acctime kind)))))
+
+    (experimental:dotimes (_n nrepeat)
+
+      (let (Tuple ma ta0) =
+        (time (fn () (fold ordtree2:insert (the (ordtree2:Tree Integer)
+                                                ordtree2:empty)
+                           bigdata))))
+      (inctime! ta0 0)
+
+      (let (Tuple _ ta1) =
+        (time (fn () (fold (fn (_ k) (ordtree2:lookup ma k)) None bigdata))))
+      (inctime! ta1 1)
+
+      (let (Tuple _ ta2) =
+        (time (fn () (fold (fn (m k) (ordtree2:remove m k)) ma bigdata))))
+      (inctime! ta2 2)
+
+      (let (Tuple mb tb0) =
+        (time (fn () (fold ordtree:insert-or-replace
+                           ordtree:empty bigdata))))
+      (inctime! tb0 3)
+
+      (let (Tuple _ tb1) =
+        (time (fn () (fold (fn (_ k) (ordtree:lookup mb k)) None bigdata))))
+      (inctime! tb1 4)
+
+      (let (Tuple _ tb2) =
+        (time (fn () (fold (fn (m k)
+                             (match (ordtree:remove m k)
+                               ((None) m)
+                               ((Some mm) mm)))
+                           mb bigdata))))
+      (inctime! tb2 5))
+
+    (lisp :a (ndata nrepeat acctime)
+      (cl:format cl:t "~%(ndata ~6d repeat ~6d~%~
+                       ;Brother tree:~%~
+                       :insert ~8d~%~
+                       :lookup ~8d~%~
+                       :delete ~8d~%~
+                       ;Red-Black tree:~%~
+                       :insert ~8d~%~
+                       :lookup ~8d~%~
+                       :delete ~8d~%)"
+                 ndata nrepeat
+                 (cl:floor (cl:aref acctime 0) nrepeat)
+                 (cl:floor (cl:aref acctime 1) nrepeat)
+                 (cl:floor (cl:aref acctime 2) nrepeat)
+                 (cl:floor (cl:aref acctime 3) nrepeat)
+                 (cl:floor (cl:aref acctime 4) nrepeat)
+                 (cl:floor (cl:aref acctime 5) nrepeat))))
+  )
+
 (define-test ordtree2-simple-bench ()
 
-  (let bigdata = (map (fn (k) (bits:and #xffffffff (* k 2654435761)))
-                      (range 0 131072)))
-
-  (let (Tuple ma ta0) =
-    (time (fn () (fold ordtree2:insert (the (ordtree2:Tree Integer)
-                                            ordtree2:empty)
-                bigdata))))
-  (let (Tuple _ ta1) =
-    (time (fn () (fold (fn (_ k) (ordtree2:lookup ma k)) None bigdata))))
-
-  (let (Tuple mb tb0) =
-    (time (fn () (fold ordtree:insert-or-replace
-                       ordtree:empty bigdata))))
-  (let (Tuple _ tb1) =
-    (time (fn () (fold (fn (_ k) (ordtree:lookup mb k)) None bigdata))))
-
-  (lisp :a (ta0 ta1 tb0 tb1)
-    (cl:format cl:t "~%Brother tree:~%~
-                     insert ~s~%~
-                     lookup ~s~%~
-                     Red-Black tree:~%~
-                     insert ~s~%~
-                     lookup ~s~%"
-               ta0 ta1 tb0 tb1))
-
+  (ordtree2-bench 4096)
+  (ordtree2-bench 16384)
+  (ordtree2-bench 65536)
+  (ordtree2-bench 262144)
+  (ordtree2-bench 1048576)
+  ;(ordtree2-bench 4194304)
   )
