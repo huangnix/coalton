@@ -17,7 +17,12 @@
    #:insert
    #:replace
    #:remove
-   #:update))
+   #:update
+   #:max-element
+   #:min-element
+   #:lookup-neighbors
+   #:increasing-order
+   #:decreasing-order))
 
 (in-package :coalton-library/ordtree2)
 
@@ -29,16 +34,8 @@
 ;; Based on Ralf Hinze, Purely Functional 1-2 Brother Trees
 ;; https://www.researchgate.net/publication/220676591_Purely_Functional_1-2_Brother_Trees
 
-(cl:defmacro match-fn (cl:&body clauses)
-  (cl:let ((arg (cl:gensym)))
-    `(fn (,arg)
-       (match ,arg
-         ,@clauses))))
-
-(cl:defmacro match-define (name cl:&body clauses)
-  `(define ,name (match-fn ,@clauses)))
-
 (coalton-toplevel
+
   (define-type (Tree :elt)
     "A 1-2 brother tree, sorted by `<=>` and unique by `==`."
 
@@ -69,7 +66,6 @@
   (define (stray-node)
     (error "Implementation error: Encountered ephemeral node during traversal"))
 
-
   (declare consistent? (Tree :elt -> Boolean))
   (define (consistent? t)
     "Check invariance condition of the tree `t`.  If the condition is broken,
@@ -90,6 +86,8 @@ an error is thrown."
       True))
 
   ;;; searching
+
+  ;; API
   (declare lookup (Ord :elt => Tree :elt -> :elt -> Optional :elt))
   (inline)
   (define (lookup haystack needle)
@@ -207,8 +205,12 @@ so that it can be directly used for update procedure."
          ((L2 a2)             (N3 tl a Empty a2 Empty))
          (_                   (N2 tl a tr))))))
 
+  ;; API
   (declare insert (Ord :elt => Tree :elt -> :elt -> Tree :elt))
   (define (insert t a)
+    "Returns an ordtree that has an new entry `a` added to `t`.  If `t` already
+has an entry which is `==` to `a`,  The new ordtree has `a` in place of the
+existing entry."
     (let ((ins (fn (n)
                  (match n
                    ((Empty)    (L2 a))
@@ -221,8 +223,29 @@ so that it can be directly used for update procedure."
                    (_ (stray-node))))))
       (make-root (ins t))))
 
+  ;; API
+  (declare adjoin (Ord :elt => Tree :elt -> :elt -> Tree :elt))
+  (define (adjoin t a)
+    "Returns an ordtree that has a new entry `a`.  If `t` already has an entry
+which is `==` to `a`, however, the original `t` is returned as is."
+    (let ((rep (fn (n)
+                 (match n
+                   ((Empty)    (L2 a))
+                   ((N1 t1)    (make-n1 (rep t1)))
+                   ((N2 l b r)
+                    (match (<=> a b)
+                      ((LT)    (make-n2i (rep l) b r))
+                      ((EQ)    n)
+                      ((GT)    (make-n2i l b (rep r)))))
+                   (_ (stray-node))))))
+      (make-root (rep t))))
+
+  ;; API
   (declare replace (Ord :elt => Tree :elt -> :elt -> Tree :elt))
   (define (replace t a)
+    "Returns an ordtree that has an entry `a` only if `t` already has an
+entry which is `==` to `a`.  The original entry is replaced with the given
+`a`.  If `t` doesn't have an entry `==` to `a`, `t` is returned as is."
     (let ((rep (fn (n)
                  (match n
                    ((Empty)    (L2 a))
@@ -235,8 +258,12 @@ so that it can be directly used for update procedure."
                    (_ (stray-node))))))
       (make-root (rep t))))
 
+  ;; API
   (declare remove (Ord :elt => Tree :elt -> :elt -> Tree :elt))
   (define (remove t a)
+    "Returns an ordtree that is the same as `t` except that the entry
+which is `==` to `a` is removed.  If `t` does not have such an entry,
+`t` is returned as is."
     (let ((del (fn (n)
                  (match n
                    ((Empty) Empty)
@@ -264,10 +291,26 @@ so that it can be directly used for update procedure."
                                                           (make-n2 t11 a1 t2))))))
       (_ (stray-node))))
 
+  ;; API
   (declare update (Ord :elt => Tree :elt -> :elt
                        -> (Optional :elt -> (Tuple (Optional :elt) :a))
                        -> (Tuple (Tree :elt) :a)))
   (define (update t a f)
+    "Generic update.  Look for the element `a` in `t`.  If there's an entry,
+call `f` with the existing entry wrapped with Some.  If there isn't an entry,
+call `f` with None.  `f` must return a tuple of possible replacement entry,
+and an auxiliary result.
+
+If the entry doesn't exist in `t` and `f` returns `(Some elt)`, `elt` is
+inserted.  If the entry exists in `t` and `f` returns None, the element
+is removed.  If the entry exists in `t` and `f` returns `(Some elt)`, `elt`
+replaces the original entry.
+
+It is important that if `f` returns `(Some elt)`, `elt` must be `==` to
+`a`---otherwise the returned ordtree would be inconsistent.  If you use
+an ordtree to keep a set of keys, you don't really need to alter the existing
+entry.  It is useful if you define your own element type that carries extra
+info, though; see OrdMap implementation."
     (let ((unchanged? (fn (a b)
                         (lisp Boolean (a b)
                           (cl:eq a b))))
@@ -306,4 +349,122 @@ so that it can be directly used for update procedure."
                     (_ (stray-node))))))
       (let (Tuple t2 aux) = (walk t))
       (Tuple (make-root t2) aux)))
+
+  ;; API
+  (declare max-element (Ord :elt => Tree :elt -> Optional :elt))
+  (define (max-element tre)
+    "Returns the maximum element in the tree, or None if the tree is empty."
+    (match tre
+      ((Empty) None)
+      ((N1 t) (max-element t))
+      ((N2 _ elt (Empty)) (Some elt))
+      ((N2 _ _ r) (max-element r))
+      (_ (stray-node))))
+
+  ;; API
+  (declare min-element (Ord :elt => Tree :elt -> Optional :elt))
+  (define (min-element tre)
+    "Returns the minimum element in the tree, or None if the tree is empty."
+    (match tre
+      ((Empty) None)
+      ((N1 t) (max-element t))
+      ((N2 (Empty) elt _) (Some elt))
+      ((N2 l _ _) (min-element l))
+      (_ (stray-node))))
+
+  ;; API
+  (declare lookup-neighbors (Ord :elt => Tree :elt -> :elt
+                                 -> (Tuple3 (Optional :elt)
+                                            (Optional :elt)
+                                            (Optional :elt))))
+  (define (lookup-neighbors haystack needle)
+    "Returns elements LO, ON, and HI, such that LO is the closest
+element that is strictly less than `needle`, ON is the element
+that is `==` to `needle`, and HI is the closest element that is
+strictly greater than `needle`.  Any of these values can be None
+if there's no such element."
+    (rec lup ((tree haystack)
+              (lo None)
+              (hi None))
+      (match tree
+        ((Empty) (Tuple3 lo None hi))
+        ((N1 t) (lup t lo hi))
+        ((N2 left elt right)
+         (match (<=> needle elt)
+           ((LT) (lup left lo (Some elt)))
+           ((EQ) (let ((lo1 (match (max-element left)
+                              ((None) lo)
+                              (e e)))
+                       (hi1 (match (min-element right)
+                              ((None) hi)
+                              (e e))))
+                   (Tuple3 lo1 (Some elt) hi1)))
+           ((GT) (lup right (Some elt) hi))))
+        (_ (stray-node)))))
+  )
+
+;;
+;; Instances
+;;
+
+(coalton-toplevel
+
+  ;; Note: We repurpose L2 node to keep element in the stack
+  (declare increasing-order (Tree :elt -> iter:Iterator :elt))
+  (define (increasing-order tre)
+    "Returns an iterator that traverses elements in `tre` in increasing order.
+This is same as (iter:into-iter tre)."
+    (let ((stack (cell:new (Cons tre Nil)))
+          (next! (fn ()
+                   (match (cell:pop! stack)
+                     ((None) None)
+                     ((Some (Empty)) (next!))
+                     ((Some (N1 t)) (cell:push! stack t) (next!))
+                     ((Some (N2 l e r))
+                      (cell:push! stack r)
+                      (cell:push! stack (L2 e))
+                      (cell:push! stack l)
+                      (next!))
+                     ((Some (L2 e)) (Some e))
+                     (_ (stray-node))))))
+      (iter:new next!)))
+
+  (declare decreasing-order (Tree :elt -> iter:Iterator :elt))
+  (define (decreasing-order tre)
+    "Returns an iterator that traverses elements in `tre` in decreasing order."
+    (let ((stack (cell:new (Cons tre Nil)))
+          (next! (fn ()
+                   (match (cell:pop! stack)
+                     ((None) None)
+                     ((Some (Empty)) (next!))
+                     ((Some (N1 t)) (cell:push! stack t) (next!))
+                     ((Some (N2 l e r))
+                      (cell:push! stack l)
+                      (cell:push! stack (L2 e))
+                      (cell:push! stack r)
+                      (next!))
+                     ((Some (L2 e)) (Some e))
+                     (_ (stray-node))))))
+      (iter:new next!)))
+
+  (define-instance (iter:IntoIterator (Tree :elt) :elt)
+    (define iter:into-iter increasing-order))
+
+  (define-instance (Ord :elt => iter:FromIterator (Tree :elt) :elt)
+    (define (iter:collect! iter)
+      (iter:fold! insert empty iter)))
+
+  (define-instance (Eq :elt => Eq (Tree :elt))
+    (define (== ta tb)
+      (iter:elementwise==! (iter:into-iter ta) (iter:into-iter tb))))
+
+  (define-instance (Hash :elt => Hash (Tree :elt))
+    (define (hash t)
+      (iter:elementwise-hash! (iter:into-iter t))))
+
+  (define-instance (Foldable Tree)
+    (define (fold f seed t)
+      (iter:fold! f seed (increasing-order t)))
+    (define (foldr f seed t)
+      (iter:fold! (flip f) seed (decreasing-order t))))
   )

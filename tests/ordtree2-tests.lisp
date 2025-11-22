@@ -208,6 +208,27 @@
                  (cl:floor (cl:aref acctime 5) nrepeat))))
   )
 
+(coalton-toplevel
+  (define (list->ordtree lis)
+    (the (ordtree2:Tree :a) (iter:collect! (iter:into-iter lis)))))
+
+(define-test ordtree2-instance-test ()
+  (let a = (the (ordtree2:Tree Integer) (list->ordtree (range 0 10))))
+
+  (is (== (foldr Cons Nil a)
+          (range 0 10)))
+  (is (== (reverse (fold (flip Cons) Nil a))
+          (range 0 10)))
+
+  (is (== (the (ordtree2:Tree Integer) (list->ordtree (reverse (range 0 10))))
+          a))
+  )
+
+
+;(define-test ordtree2-neighbors-test ()
+;  )
+
+
 (define-test ordtree2-simple-bench ()
 
   (ordtree2-bench 4096)
