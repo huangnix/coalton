@@ -22,6 +22,7 @@
    #:max-element
    #:min-element
    #:lookup-neighbors
+   #:transform-elements
    #:increasing-order
    #:decreasing-order
    #:union
@@ -339,7 +340,10 @@ info, though; see OrdMap implementation."
                                  (Tuple (make-n2 ll b r) aux)))
                        ((EQ) (match (f (Some b))
                                ((Tuple (None) aux) ; delete
-                                (Tuple (N1 l) aux))
+                                (match (split-min r)
+                                  ((None) (Tuple (N1 l) aux))
+                                  ((Some (Tuple a1 r1))
+                                   (Tuple (make-n2 l a1 r1) aux))))
                                ((Tuple (Some b2) aux) ;replace
                                 ;; NB: `f` must guarantee that the new element
                                 ;; is `==` to the old element.  Otherwise
@@ -354,6 +358,22 @@ info, though; see OrdMap implementation."
                     (_ (stray-node))))))
       (let (Tuple t2 aux) = (walk t))
       (Tuple (make-root t2) aux)))
+
+  (declare transform-elements ((:a -> :b) -> OrdTree :a -> OrdTree :b))
+  (define (transform-elements f tre)
+    "Returns a tree whose element consists of the result of `f` applied to
+the original element, and isomorphic to the original tree.
+
+It is important that transforming keys with `f` does not change the order
+of the element.  If `f` violates the condition, the resulting tree isn't
+guaranteed to be consistent.
+
+We do not name this `map` because of this restriction."
+    (match tre
+      ((Empty) Empty)
+      ((N1 t) (transform-elements f t))
+      ((N2 l e r) (N2 (transform-elements f l) (f e) (transform-elements f r)))
+      (_ (stray-node))))
 
   ;; Note: We repurpose L2 node to keep element in the stack
   (declare increasing-order (OrdTree :elt -> iter:Iterator :elt))
@@ -485,10 +505,17 @@ The resulting elements are from `a`."
     "Raturns an OrdTree that contains elements either in `a` or in `b`,
 but not in both."
     (iter:fold! (fn (m k)
-                  (match (lookup b k)
-                    ((None) (insert m k))
-                    ((Some _) m)))
-                Empty (increasing-order a)))
+                  (let ((z
+                          (fst (update m k
+                               (fn (e)
+                                 (lisp :a (k e) (cl:format cl:t "~%k=~s e=~s" k e))
+                                 (match e
+                                   ((None) (Tuple (Some k) Unit))
+                                   ((Some _) (Tuple None Unit))))))))
+                    (lisp :a (z) (cl:format cl:t "~%z=~s" z))
+                    z))
+                Empty (iter:chain! (increasing-order a)
+                                   (increasing-order b))))
   )
 
 ;;
@@ -517,12 +544,4 @@ but not in both."
       (iter:fold! f seed (increasing-order t)))
     (define (foldr f seed t)
       (iter:fold! (flip f) seed (decreasing-order t))))
-
-  (define-instance (Functor OrdTree)
-    (define (map f tre)
-      (match tre
-        ((Empty) Empty)
-        ((N1 t) (map f t))
-        ((N2 l e r) (N2 (map f l) (f e) (map f r)))
-        (_ (stray-node)))))
   )

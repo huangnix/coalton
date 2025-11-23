@@ -26,7 +26,10 @@
    #:entries
    #:collect!
    #:collect
-   #:union))
+   #:union
+   #:intersection
+   #:difference
+   #:xor))
 
 (in-package :coalton-library/ordmap)
 
@@ -244,15 +247,38 @@ result, where v' is the previous value associated with k.
 
   (declare union (Ord :key => OrdMap :key :value -> OrdMap :key :value -> OrdMap :key :value))
   (define (union a b)
-    "Construct a Tree containing all the mappings of both A and B.
+    "Construct an OrdMap containing all the mappings of both A and B.
 
 If A and B contain mappings X -> A' and X -> B', the former mapping is kept.
 
 Because of the possibility that A and B will map the same X to different A' and B', this is not an associative
 operation, and therefore OrdMap cannot implement Monoid."
-    (let (%Map a) = a)
-    (let (%Map b) = b)
-    (%Map (tree:union a b)))
+    (let (%Map ta) = a)
+    (let (%Map tb) = b)
+    (%Map (tree:union ta tb)))
+
+  (declare intersection (Ord :key => OrdMap :key :value -> OrdMap :key :value -> OrdMap :key :value))
+  (define (intersection a b)
+    "Construct an OrdMap contaning elements whose key appears in both `a` and `b`.
+The resulting values are from `a`."
+    (let (%Map ta) = a)
+    (let (%Map tb) = b)
+    (%Map (tree:intersection ta tb)))
+
+  (declare difference (Ord :key => OrdMap :key :value -> OrdMap :key :value -> OrdMap :key :value))
+  (define (difference a b)
+    "Raturns an OrdMap that contains mappings in `a` but not in `b`."
+    (let (%Map ta) = a)
+    (let (%Map tb) = b)
+    (%Map (tree:difference ta tb)))
+
+  (declare xor (Ord :key => OrdMap :key :value -> OrdMap :key :value -> OrdMap :key :value))
+  (define (xor a b)
+    "Raturns an OrdMap that contains mappings either in `a` or in `b`,
+but not in both."
+    (let (%Map ta) = a)
+    (let (%Map tb) = b)
+    (%Map (tree:xor ta tb)))
 
   (define-instance (Ord :key => Semigroup (OrdMap :key :value))
     (define <> union))
@@ -260,11 +286,11 @@ operation, and therefore OrdMap cannot implement Monoid."
   (define-instance (Functor (OrdMap :key))
     (define (map func mp)
       (let (%Map tre) = mp)
-      (%Map (map (fn (e)
-                   (match e
-                     ((MapPair k v) (MapPair k (func v)))
-                     ((JustKey _) (error "Stray JustKey"))))
-                 tre))))
+      (%Map (tree:transform-elements (fn (e)
+                                       (match e
+                                         ((MapPair k v) (MapPair k (func v)))
+                                         ((JustKey _) (error "Stray JustKey"))))
+                                     tre))))
 
   ;; As with `tree:Tree', `OrdMap' should probably implement `Traversable'.
   )

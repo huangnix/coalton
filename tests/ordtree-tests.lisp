@@ -148,7 +148,27 @@
 
 (coalton-toplevel
   (define (list->ordtree lis)
-    (the (ordtree:OrdTree :a) (iter:collect! (iter:into-iter lis)))))
+    (the (ordtree:OrdTree :a) (iter:collect! (iter:into-iter lis))))
+  (define (ordtree->list tre)
+    (iter:collect! (ordtree:increasing-order tre))))
+
+(define-test ordtree-set-test ()
+  (let a = (the (ordtree:OrdTree Integer)
+                (list->ordtree (make-list 1 4 5 9 10 14))))
+  (let b = (the (ordtree:OrdTree Integer)
+                (list->ordtree (make-list 2 3 5 7 9 13))))
+
+  (is (== (ordtree->list (ordtree:union a b))
+          (make-list 1 2 3 4 5 7 9 10 13 14)))
+  (is (== (ordtree->list (ordtree:intersection a b))
+          (make-list 5 9)))
+  (is (== (ordtree->list (ordtree:difference a b))
+          (make-list 1 4 10 14)))
+  (is (== (ordtree->list (ordtree:difference b a))
+          (make-list 2 3 7 13)))
+  (is (== (ordtree->list (ordtree:xor b a))
+          (make-list 1 2 3 4 7 10 13 14)))
+  )
 
 (define-test ordtree-instance-test ()
   (let a = (the (ordtree:OrdTree Integer) (list->ordtree (range 0 10))))
@@ -160,6 +180,10 @@
 
   (is (== (the (ordtree:OrdTree Integer) (list->ordtree (reverse (range 0 10))))
           a))
+
+  (is (== (ordtree->list
+           (ordtree:transform-elements (* 2) (list->ordtree (range 0 10))))
+          (make-list 0 2 4 6 8 10 12 14 16 18 20)))
   )
 
 (define-test ordtree-neighbors-test ()
