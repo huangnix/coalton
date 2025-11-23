@@ -440,12 +440,10 @@ a new entry."
       ((Tree mask arr)
        (let ind = (trie-index hb depth))
        (if (tree-has-entry? mask ind)
-           (match mode
-             ((AdjoinOp) node) ; noop
-             (_ (let ((newelt (%insertion mode (1+ depth) hb
-                                          (arr:aref arr (index->pos mask ind))
-                                          key val)))
-                  (tree-insert mask arr ind newelt))))
+           (let ((newelt (%insertion mode (1+ depth) hb
+                                     (arr:aref arr (index->pos mask ind))
+                                     key val)))
+             (tree-insert mask arr ind newelt))
            (match mode
              ((ReplaceOp) node) ; noop
              (_ (let ((newelt (Leaf (HmEntry key val))))
@@ -690,9 +688,12 @@ removed.  If HM does not contain an entry with KEY, HM is returned as is."
     (define (iter:into-iter hm)
       (iter:new (->generator hm Tuple))))
 
-  (define-instance ((Eq :k) (Eq :v) => Eq (HashMap :k :v))
+  (define-instance ((Eq :k) (Eq :v) (Hash :k) => Eq (HashMap :k :v))
     (define (== a b)
-      (iter:elementwise==! (iter:into-iter a) (iter:into-iter b))))
+      (and (== (count a) (count b))
+           (iter:every! (fn ((Tuple k v))
+                          (== (lookup b k) (Some v)))
+                        (entries a)))))
 
   (define-instance ((Hash :k) (Hash :v) => Hash (HashMap :k :v))
     (define (hash hm)
