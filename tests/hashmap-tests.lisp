@@ -402,6 +402,27 @@
                       (Tuple 14 "Juuyon")))))
   )
 
+(define-test hashmap-instance-test ()
+  (let a = (the (hashmap:HashMap Integer String)
+                (list->hashmap
+                 (make-list (Tuple 0 "Ling")
+                            (Tuple 1 "Yi")
+                            (Tuple 2 "Er")
+                            (Tuple 3 "San")
+                            (Tuple 4 "Si")))))
+
+  (is (== (hash a) (hash a)))
+
+  (is (== (map string:reverse a)
+          (list->hashmap
+           (the (List (Tuple Integer String))
+                (make-list (Tuple 0 "gniL")
+                           (Tuple 1 "iY")
+                           (Tuple 2 "rE")
+                           (Tuple 3 "naS")
+                           (Tuple 4 "iS"))))))
+  )
+
 (define-test hashmap-heavy-test ()
   (let data-size = 500000)
   (let tab = (hashtable:new))

@@ -477,94 +477,6 @@ a new entry."
            node))))
 
   ;; API
-  ;;  The most generic procedure - in fact, we can implement all of
-  ;;  insert, replace and delete on top of this.  However it would be
-  ;;  inefficient unless Coalton figures out the snd of the tuple isn't
-  ;;  used in those implementations and eliminate all the intermediate tuple
-  ;;  creations.
-  (declare update (Hash :k => HashMap :k :v -> :k -> (Optional :v -> (Tuple (Optional :v) :a)) -> Tuple (HashMap :k :v) :a))
-  (define (update hm key f)
-    ""
-    (let ((hb (hbits key))
-          ;; walk may return (Chain Nil) to indicate the sole node is
-          ;; deleted.
-          ;;(declare walk (Hash :k => UFix -> HmNode :k :v
-          ;;                    -> Tuple (HmNode :k :v) :a))
-          (walk
-            (fn (depth node)
-              (assert (<= depth max-depth))
-              (match node
-                ((Chain (Nil))  ; only happens on previously empty hashmap
-                 (match (f None)
-                   ((Tuple (None) aux)
-                    (Tuple node aux))
-                   ((Tuple (Some newval) aux)
-                    (Tuple (Leaf (HmEntry key newval)) aux))))
-                ((Chain _); only happens on depth == max-depth
-                 (assert (== depth max-depth))
-                 (match (f None)
-                   ((Tuple (None) aux)
-                    (Tuple (chain-remove node key) aux))
-                   ((Tuple (Some newval) aux)
-                    (Tuple (chain-replace node key newval True) aux))))
-                ((Leaf entry)
-                 (if (== key (entry-key entry))
-                     (match (f (Some (entry-value entry)))
-                       ((Tuple (None) aux)        ; delete
-                        (Tuple (Chain nil) aux))
-                       ((Tuple (Some newval) aux) ; replace
-                        (Tuple (Leaf (HmEntry key newval)) aux)))
-                     (match (f None)
-                       ((Tuple (None) aux)        ; no-op
-                        (Tuple node aux))
-                       ((Tuple (Some newval) aux) ; insert
-                        (Tuple
-                         (if (== depth max-depth)
-                             (Chain (make-list (HmEntry key newval) entry))
-                             (Bud entry (HmEntry key newval)))
-                         aux)))))
-                ((Bud entry1 entry2)
-                 (let ((newbud (fn (hit-entry miss-entry)
-                                 (match (f (Some (entry-value hit-entry)))
-                                   ((Tuple (None) aux) ; delete
-                                    (Tuple (Leaf miss-entry) aux))
-                                   ((Tuple (Some newval) aux) ;replace
-                                    (Tuple (Bud (HmEntry key newval) miss-entry)
-                                           aux))))))
-                   (cond ((== key (entry-key entry1))
-                          (newbud entry1 entry2))
-                         ((== key (entry-key entry2))
-                          (newbud entry2 entry1))
-                         (True
-                          (match (f None)
-                            ((Tuple (None) aux) ; no-op
-                             (Tuple node aux))
-                            ((Tuple (Some newval) aux) ; insert
-                             (Tuple (Chain (make-list
-                                            (HmEntry key newval)
-                                            entry1 entry2))
-                                    aux)))))))
-                ((Tree mask arr)
-                 (let ind = (trie-index hb (as UFix depth)))
-                 (if (tree-has-entry? mask ind)
-                     (match (walk (as UFix (1+ depth))
-                                  (arr:aref arr (index->pos mask ind)))
-                       ((Tuple (Chain (Nil)) aux) ; branch is deleted
-                        (Tuple (tree-delete mask arr ind) aux))
-                       ((Tuple rnode aux) ; branch is updated
-                        (Tuple (tree-insert mask arr ind rnode) aux)))
-                     (match (f None)
-                       ((Tuple (None) aux) ; no-op
-                        (Tuple node aux))
-                       ((Tuple (Some newval) aux) ; insert
-                        (Tuple (tree-insert mask arr ind
-                                            (Leaf (HmEntry key newval)))
-                               aux))))))))
-          )
-      (let (Tuple newnode aux) = (walk (the UFix 0) (root hm)))
-      (Tuple (HashMap newnode) aux)))
-
-  ;; API
   (declare insert (Hash :k => HashMap :k :v -> :k -> :v
                         -> HashMap :k :v))
   (define (insert hm key val)
@@ -603,6 +515,107 @@ removed.  If HM does not contain an entry with KEY, HM is returned as is."
            (if (unchanged? (root hm) newroot)
                hm
                (HashMap newroot))))))
+
+  ;; API
+  ;;  Generic updater
+  (declare update (Hash :k => HashMap :k :v -> :k
+                        -> (Optional :v -> (Tuple (Optional :v) :a))
+                        -> Tuple (HashMap :k :v) :a))
+  (define (update hm key f)
+    ""
+    (let ((hb (hbits key))
+          ;; walk may return (Chain Nil) to indicate the sole node is
+          ;; deleted.
+          ;;(declare walk (Hash :k => UFix -> HmNode :k :v
+          ;;                    -> Tuple (HmNode :k :v) :a))
+          (walk
+            (fn (depth node)
+              (assert (<= depth max-depth))
+              (match node
+                ((Chain (Nil))  ; only happens on previously empty hashmap
+                 (match (f None)
+                   ((Tuple (None) aux)
+                    (Tuple node aux))
+                   ((Tuple (Some newval) aux)
+                    (Tuple (Leaf (HmEntry key newval)) aux))))
+                ((Chain _); only happens on depth == max-depth
+                 (assert (== depth max-depth))
+                 (match (f None)
+                   ((Tuple (None) aux)
+                    (Tuple (chain-remove node key) aux))
+                   ((Tuple (Some newval) aux)
+                    (Tuple (chain-replace node key newval True) aux))))
+                ((Leaf entry)
+                 (if (== key (entry-key entry))
+                     (match (f (Some (entry-value entry)))
+                       ((Tuple (None) aux)        ; delete
+                        (Tuple (Chain nil) aux))
+                       ((Tuple (Some newval) aux) ; replace
+                        (Tuple (Leaf (HmEntry key newval)) aux)))
+                     (match (f None)
+                       ((Tuple (None) aux)        ; no-op
+                        (Tuple node aux))
+                       ((Tuple (Some newval) aux) ; insert
+                        (Tuple
+                         (%insertion InsertOp depth hb node key newval)
+                         aux)))))
+                ((Bud entry1 entry2)
+                 (let ((newbud (fn (hit-entry miss-entry)
+                                 (match (f (Some (entry-value hit-entry)))
+                                   ((Tuple (None) aux) ; delete
+                                    (Tuple (Leaf miss-entry) aux))
+                                   ((Tuple (Some newval) aux) ;replace
+                                    (Tuple (Bud (HmEntry key newval) miss-entry)
+                                           aux))))))
+                   (cond ((== key (entry-key entry1))
+                          (newbud entry1 entry2))
+                         ((== key (entry-key entry2))
+                          (newbud entry2 entry1))
+                         (True
+                          (match (f None)
+                            ((Tuple (None) aux) ; no-op
+                             (Tuple node aux))
+                            ((Tuple (Some newval) aux) ; insert
+                             (Tuple
+                              (%insertion InsertOp depth hb node key newval)
+                              aux)))))))
+                ((Tree mask arr)
+                 (let ind = (trie-index hb (as UFix depth)))
+                 (if (tree-has-entry? mask ind)
+                     (match (walk (as UFix (1+ depth))
+                                  (arr:aref arr (index->pos mask ind)))
+                       ((Tuple (Chain (Nil)) aux) ; branch is deleted
+                        (Tuple (tree-delete mask arr ind) aux))
+                       ((Tuple rnode aux) ; branch is updated
+                        (Tuple (tree-insert mask arr ind rnode) aux)))
+                     (match (f None)
+                       ((Tuple (None) aux) ; no-op
+                        (Tuple node aux))
+                       ((Tuple (Some newval) aux) ; insert
+                        (Tuple (tree-insert mask arr ind
+                                            (Leaf (HmEntry key newval)))
+                               aux))))))))
+          )
+      (let (Tuple newnode aux) = (walk (the UFix 0) (root hm)))
+      (Tuple (HashMap newnode) aux)))
+
+  ;; Auxiliary functions for functor
+  (declare %fmap-entry ((:v -> :w) ->  HmEntry :k :v ->  HmEntry :k :w))
+  (define (%fmap-entry f (HmEntry k v))
+    (HmEntry k (f v)))
+
+  (declare %map ((:v -> :w) -> HmNode :k :v -> HmNode :k :w))
+  (define (%map f node)
+    (match node
+      ((Chain es) (Chain (map (%fmap-entry f) es)))
+      ((Leaf entry) (Leaf (%fmap-entry f entry)))
+      ((Bud entry1 entry2) (Bud (%fmap-entry f entry1)
+                                (%fmap-entry f entry2)))
+      ((Tree mask arr)
+       (let newarr = (arr:make-uninitialized (arr:length arr)))
+       (dotimes (i (arr:length arr))
+         (arr:set! newarr i (%map f (arr:aref arr i))))
+       (Tree mask newarr))))
 
   ;; Iterator
   (declare ->generator (HashMap :k :v -> (:k -> :v -> :a)
@@ -679,8 +692,15 @@ removed.  If HM does not contain an entry with KEY, HM is returned as is."
     (define (hash hm)
       (iter:elementwise-hash! (iter:into-iter hm))))
 
-  (define-instance ((Hash :k) => iter:FromIterator (HashMap :k :v) (Tuple :k :v))
+  (define-instance (Hash :k => iter:FromIterator (HashMap :k :v) (Tuple :k :v))
     (define iter:collect! collect!))
+
+  (define-instance (Hash :k => Semigroup (HashMap :k :v))
+    (define <> union))
+
+  (define-instance (Functor (HashMap :key))
+    (define (map func mp)
+      (HashMap (%map func (root mp)))))
   )
 
 ;;
