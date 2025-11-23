@@ -12,6 +12,7 @@
   (:export
    #:OrdMap
    #:empty
+   #:empty?
    #:lookup
    #:lookup-neighbors
    #:max-key-entry
@@ -70,7 +71,7 @@
 
   (repr :transparent)
   (define-type (OrdMap :key :value)
-    "A red-black binary tree which associates each :KEY with a :VALUE, sorted by `<=>' on the keys and unique by `==' on the keys."
+    "A binary tree which associates each :KEY with a :VALUE, sorted by `<=>' on the keys and unique by `==' on the keys."
     (%Map (tree:OrdTree (MapPair :key :value))))
 
   ;; Mapping API
@@ -78,6 +79,12 @@
   (define empty
     "A OrdMap containing no mappings."
     (%Map tree:Empty))
+
+  (declare empty? (OrdMap :key :value -> Boolean))
+  (define (empty? m)
+    "Returns True iff the given OrdMap is empty."
+    (let (%Map t) = m)
+    (tree:empty? t))
 
   ;; Mapping API
   (declare lookup ((Ord :key) => OrdMap :key :value -> :key -> Optional :value))
