@@ -324,10 +324,7 @@ the computation."
       (local
        without-overdraft-protection
        (transfer acc-to-close-name deposit-acc-name (.balance acc-to-close)))
-      (okM (modify (fn (mp)
-                (with-default
-                  mp
-                  (m:remove mp acc-to-close-name))))))))
+      (okM (modify (fn (mp) (m:remove mp acc-to-close-name)))))))
 
 ;;; Finally, we run our bank simulation! We use the `do-resultT` macro, which
 ;;; wraps a sequence of `ResultT` computations in a single do block and runs them.
