@@ -673,6 +673,12 @@ removed.  If HM does not contain an entry with KEY, HM is returned as is."
   (define (values hm)
     "Returns an interator to iterate over all the values in a hashmap hm."
     (iter:new (->generator hm (fn (_ v) v))))
+
+  ;; API
+  (declare entries (Hash :k => HashMap :k :v -> (iter:Iterator (Tuple :k :v))))
+  (define (entries hm)
+    "Returns an interator to iterate over all entries in hashmap hm."
+    (iter:new (->generator hm Tuple)))
   )
 
 ;;
@@ -694,9 +700,6 @@ removed.  If HM does not contain an entry with KEY, HM is returned as is."
 
   (define-instance (Hash :k => iter:FromIterator (HashMap :k :v) (Tuple :k :v))
     (define iter:collect! collect!))
-
-  (define-instance (Hash :k => Semigroup (HashMap :k :v))
-    (define <> union))
 
   (define-instance (Functor (HashMap :key))
     (define (map func mp)
@@ -747,6 +750,9 @@ but not in both."
                                    ((Some _) (Tuple None Unit)))))))
                 Empty (iter:chain! (iter:into-iter a)
                                    (iter:into-iter b))))
+
+  (define-instance (Hash :k => Semigroup (HashMap :k :v))
+    (define <> union))
   )
 
 ;;
