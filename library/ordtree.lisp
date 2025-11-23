@@ -505,15 +505,11 @@ The resulting elements are from `a`."
     "Raturns an OrdTree that contains elements either in `a` or in `b`,
 but not in both."
     (iter:fold! (fn (m k)
-                  (let ((z
-                          (fst (update m k
+                  (fst (update m k
                                (fn (e)
-                                 (lisp :a (k e) (cl:format cl:t "~%k=~s e=~s" k e))
                                  (match e
                                    ((None) (Tuple (Some k) Unit))
-                                   ((Some _) (Tuple None Unit))))))))
-                    (lisp :a (z) (cl:format cl:t "~%z=~s" z))
-                    z))
+                                   ((Some _) (Tuple None Unit)))))))
                 Empty (iter:chain! (increasing-order a)
                                    (increasing-order b))))
   )
