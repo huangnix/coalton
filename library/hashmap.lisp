@@ -185,7 +185,8 @@ of empty hashmap, or nodes at the maximum depth."
   (define (chain-entries node)
     (match node
       ((Chain entries) entries)
-      (_ (error "Chain expected, but got ~s" node))))
+      (_ (lisp :a (node)
+           (coalton-bug "Chain expected, but got ~s" node)))))
 
   (declare chain-replace (Eq :k => HmNode :k :v -> :k -> :v -> Boolean
                              -> HmNode :k :v))
@@ -382,6 +383,7 @@ a new entry."
              (search (+ depth 1) (arr:aref arr (index->pos mask ind)))
              None)))))
 
+  (repr :enum)
   (define-type InsertionMode
     InsertOp
     AdjoinOp

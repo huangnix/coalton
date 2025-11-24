@@ -8,7 +8,8 @@
    #:coalton-library/math)
   (:local-nicknames
    (#:iter #:coalton-library/iterator)
-   (#:cell #:coalton-library/cell))
+   (#:cell #:coalton-library/cell)
+   (#:util #:coalton-impl/util))
   (:shadow #:empty)
   (:export
    #:OrdTree #:empty
@@ -70,7 +71,8 @@
   ;;; aux
   (declare stray-node (Unit -> :a))
   (define (stray-node)
-    (error "Implementation error: Encountered ephemeral node during traversal"))
+    (lisp :a ()
+      (util:coalton-bug "Encountered ephemeral node during traversal")))
 
   (declare consistent? (OrdTree :elt -> Boolean))
   (define (consistent? t)
