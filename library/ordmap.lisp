@@ -258,8 +258,7 @@ result, where v' is the previous value associated with k.
 
 If A and B contain mappings X -> A' and X -> B', the former mapping is kept.
 
-Because of the possibility that A and B will map the same X to different A' and B', this is not an associative
-operation, and therefore OrdMap cannot implement Monoid."
+The operation is associative, but not commutative."
     (let (%Map ta) = a)
     (let (%Map tb) = b)
     (%Map (tree:union ta tb)))
@@ -289,6 +288,9 @@ but not in both."
 
   (define-instance (Ord :key => Semigroup (OrdMap :key :value))
     (define <> union))
+
+  (define-instance (Ord :key => Monoid (OrdMap :key :value))
+    (define mempty Empty))
 
   (define-instance (Functor (OrdMap :key))
     (define (map func mp)

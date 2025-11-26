@@ -721,8 +721,7 @@ removed.  If HM does not contain an entry with KEY, HM is returned as is."
 
 If A and B contain mappings X -> A' and X -> B', the former mapping is kept.
 
-Because of the possibility that A and B will map the same X to different A' and B', this is not an associative
-operation, and therefore OrdMap cannot implement Monoid."
+The operation is associative, but not commutative."
     (iter:fold! (fn (m (Tuple k v)) (adjoin m k v)) a (iter:into-iter b)))
 
   (declare intersection (Hash :k => HashMap :k :v -> HashMap :k :v -> HashMap :k :v))
@@ -756,6 +755,9 @@ but not in both."
 
   (define-instance (Hash :k => Semigroup (HashMap :k :v))
     (define <> union))
+
+  (define-instance (Hash :k => Monoid (HashMap :k :v))
+    (define mempty Empty))
   )
 
 ;;
