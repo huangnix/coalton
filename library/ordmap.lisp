@@ -218,7 +218,7 @@ If `coll` contains duplicate keys, later values will overwrite earlier values."
   (define (update mp k f)
     "Lookup an association with `k` in `mp`.  If there's an entry, call `f`
 with its value wrapped with Some.  If there isn't an entry, call 'f' with
-None.  `f` must terun a tuple of possible new value and an auxiliary
+None.  `f` must return a tuple of possible new value and an auxiliary
 result.
 If the fst of `f`'s return value is Some, its content is inserted into
 `mp` in association with `k`.   If the fst of `f`'s return value is None,

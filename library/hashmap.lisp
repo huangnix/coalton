@@ -729,6 +729,8 @@ The operation is associative, but not commutative."
     "Construct a HashMap containing all the mappings whose key is in both A and B.
 
 The entries from A remains in the result."
+    ;; TODO: This can be more efficient by traversing both trees in parallel,
+    ;; as keys are both ordered with their hash values.
     (iter:fold! (fn (m (Tuple k v))
                   (match (lookup b k)
                     ((None) m)

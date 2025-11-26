@@ -314,11 +314,12 @@ inserted.  If the entry exists in `t` and `f` returns None, the element
 is removed.  If the entry exists in `t` and `f` returns `(Some elt)`, `elt`
 replaces the original entry.
 
-It is important that if `f` returns `(Some elt)`, `elt` must be `==` to
-`a`---otherwise the returned ordtree would be inconsistent.  If you use
-an ordtree to keep a set of keys, you don't really need to alter the existing
-entry.  It is useful if you define your own element type that carries extra
-info, though; see OrdMap implementation."
+It is important that if `f` returns `(Some elt)`, `elt` must be still greater
+than the 'previous' element and less than the 'next' element in the tree,
+otherwise the returned tree would be inconsistent.
+If you use an ordtree to keep a set of keys, you don't really need to alter
+the existing entry.  It is useful if you define your own element type that
+carries extra info, though; see OrdMap implementation."
     (let ((unchanged? (fn (a b)
                         (lisp Boolean (a b)
                           (cl:eq a b))))
@@ -348,8 +349,12 @@ info, though; see OrdMap implementation."
                                    (Tuple (make-n2 l a1 r1) aux))))
                                ((Tuple (Some b2) aux) ;replace
                                 ;; NB: `f` must guarantee that the new element
-                                ;; is `==` to the old element.  Otherwise
-                                ;; the tree silently breaks.
+                                ;; still falls between the previous and next
+                                ;; element in the tree.
+                                ;; TODO: Should we check the conditon of
+                                ;; returned element of `f`?  It will be
+                                ;; expensive.  One idea is to check it in
+                                ;; development mode, but not in release mode.
                                 (if (unchanged? b b2)
                                     (Tuple n aux)
                                     (Tuple (N2 l b2 r) aux)))))
@@ -483,14 +488,16 @@ if there's no such element."
 (coalton-toplevel
   (declare union (Ord :elt => OrdTree :elt -> OrdTree :elt -> OrdTree :elt))
   (define (union a b)
-    "Raturns an OrdTree that contains all the elements from `a` and `b`.
+    "Returns an OrdTree that contains all the elements from `a` and `b`.
 If both OrdTrees has the same (`==`) element, the one from `a` is taken."
     (iter:fold! adjoin a (increasing-order b)))
 
   (declare intersection (Ord :elt => OrdTree :elt -> OrdTree :elt -> OrdTree :elt))
   (define (intersection a b)
-    "Raturns an OrdTree that contains elements that appear in both `a` and `b`.
+    "Returns an OrdTree that contains elements that appear in both `a` and `b`.
 The resulting elements are from `a`."
+    ;; TODO: This can be more efficient by traversing both trees in the
+    ;; same order and selecting common elements.
     (iter:fold! (fn (m k)
                   (match (lookup b k)
                     ((None) m)
@@ -499,12 +506,12 @@ The resulting elements are from `a`."
 
   (declare difference (Ord :elt => OrdTree :elt -> OrdTree :elt -> OrdTree :elt))
   (define (difference a b)
-    "Raturns an OrdTree that contains elements in `a` but not in `b`."
+    "Returns an OrdTree that contains elements in `a` but not in `b`."
     (iter:fold! remove a (increasing-order b)))
 
   (declare xor (Ord :elt => OrdTree :elt -> OrdTree :elt -> OrdTree :elt))
   (define (xor a b)
-    "Raturns an OrdTree that contains elements either in `a` or in `b`,
+    "Rdturns an OrdTree that contains elements either in `a` or in `b`,
 but not in both."
     (iter:fold! (fn (m k)
                   (fst (update m k
